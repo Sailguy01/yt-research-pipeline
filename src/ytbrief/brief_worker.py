@@ -16,6 +16,7 @@ import subprocess
 import sys
 
 from . import connect, utcnow, to_cst
+from .models import call_llm_with_fallback, notify_fallback
 
 BRIEF_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "briefs")
 ANALYSIS_VERSION = "v2.0-skill"
@@ -161,7 +162,15 @@ def process_video(con, video_id: str, dry_run: bool = False, provider: str | Non
     transcript_text = open(v["file_path"]).read()
     prompt = build_prompt(dict(v), transcript_text)
     print(f"  analyzing {video_id} ({len(transcript_text)} chars)...")
-    raw = call_llm(prompt, provider=provider, model=model)
+    if provider or model:
+        from .models import MODEL_CHAIN
+        raw = call_llm(prompt, provider=provider, model=model)
+        used = {"label": model, "provider": provider, "model": model}
+        failures = []
+    else:
+        raw, used, failures = call_llm_with_fallback(prompt, video_id=video_id)
+        if failures:
+            notify_fallback(used, failures, video_id)
     brief = parse_json_loose(raw)
 
     # Enum normalization (defense in depth): model may return free-text confidence
