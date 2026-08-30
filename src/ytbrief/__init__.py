@@ -9,7 +9,7 @@ DB_PATH = f"{PROJECT}/data/pipeline.db"
 DATA_DIR = f"{PROJECT}/data"
 
 SCHEMA_MIGRATIONS = ["001_phase0.sql", "002_channels_last_sync.sql",
-                     "003_external_docs.sql", "004_brief_v3_columns.sql"]
+                     "003_external_docs.sql", "004_brief_v3_columns.sql", "005_video_description.sql"]
 
 
 def utcnow() -> str:

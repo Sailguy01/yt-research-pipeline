@@ -77,7 +77,9 @@ def fetch_duration(con, video_id: str):
         if r.returncode == 0:
             meta = _json.loads(r.stdout.splitlines()[0])
             dur = int(meta.get("duration") or 0)
-            con.execute("UPDATE videos SET duration_s=? WHERE video_id=?", (dur, video_id))
+            desc = (meta.get("description") or "")[:4000]
+            con.execute("UPDATE videos SET duration_s=?, description=? WHERE video_id=?",
+                        (dur, desc, video_id))
             con.commit()
             return dur
     except Exception:
