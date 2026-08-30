@@ -26,7 +26,7 @@ def notify_fallback(used: dict, failed: list[dict], video_id: str):
     msg = (f"⚠️ Brief pipeline fallback — video {video_id}\n"
            f"Primary model {primary} failed. Used backup: {used['label']}.\n"
            f"Failures: {tried}")
-    subprocess.run(["hermes", "send", "--to", NOTIFY_TARGET, msg],
+    subprocess.run(["/Users/openclaw/.local/bin/hermes", "send", "--to", NOTIFY_TARGET, msg],
                    capture_output=True, text=True, timeout=60)
 
 

@@ -23,6 +23,8 @@ ANALYSIS_VERSION = "v2.0-skill"
 DELIVERY_TARGET = "telegram:515737487:4607"  # Market Video Briefs (verified)
 SKILL_PATH = os.path.expanduser("~/.hermes/skills/research/yt-video-briefing/SKILL.md")
 
+HERMES_BIN = "/Users/openclaw/.local/bin/hermes"  # launchd has no shell PATH
+
 BANNED_PHRASES = [
     r"\bthis stock will\b", r"\bclearly undervalued\b", r"\bguaranteed\b",
     r"\bobvious trade\b", r"\byou should buy\b", r"\byou should sell\b",
@@ -94,7 +96,7 @@ Identify guests/hosts from the video_description ABOVE (it names them). Use the 
 
 def call_llm(prompt: str, provider: str | None = None, model: str | None = None) -> str:
     """Call Hermes chat non-interactively (-Q: final response only, no banner)."""
-    args = ["hermes", "chat", "-q", prompt, "-Q"]
+    args = [HERMES_BIN, "chat", "-q", prompt, "-Q"]
     if provider:
         args += ["--provider", provider]
     if model:
@@ -258,7 +260,7 @@ def process_video(con, video_id: str, dry_run: bool = False, provider: str | Non
 
     # Delivery via hermes send (verified target)
     card = brief.get("card", "")
-    r = subprocess.run(["hermes", "send", "--to", DELIVERY_TARGET, card],
+    r = subprocess.run([HERMES_BIN, "send", "--to", DELIVERY_TARGET, card],
                        capture_output=True, text=True, timeout=120)
     state = "sent" if r.returncode == 0 else "failed"
     con.execute("""INSERT INTO deliveries (delivery_id, brief_id, target, state, attempts, last_error)
