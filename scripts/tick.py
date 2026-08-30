@@ -12,6 +12,7 @@ from ytbrief import connect
 from ytbrief.poller import poll_once
 from ytbrief import transcripts as tr
 from ytbrief import brief_worker as bw
+from ytbrief import intake
 
 MAX_TRANSCRIPTS_PER_TICK = 4
 MAX_BRIEFS_PER_TICK = 2  # LLM cost control; queue drains over multiple ticks
@@ -21,7 +22,10 @@ def tick() -> dict:
     con = connect()
     out = {}
 
-    # 1. Discovery
+    # 0. Telegram intake (manual links bypass cutoff via origin='manual'; docs registered)
+    out["intake"] = {"links": intake.queue_links(con)}
+
+    # 1. Discovery (automatic — cutoff enforced inside poller)
     out["poll"] = poll_once(con)
 
     # 2. Transcripts for discovered videos (oldest-first, capped)
@@ -31,6 +35,7 @@ def tick() -> dict:
            WHERE v.state='discovered' AND t.video_id IS NULL
            ORDER BY v.priority DESC, v.published_at ASC LIMIT ?""",
         (MAX_TRANSCRIPTS_PER_TICK,))]
+    # manual submissions bypass the Aug-25 cutoff: they are never filtered by date
     t_ok = t_miss = 0
     for vid in vids:
         if tr.acquire(con, vid):
@@ -57,6 +62,22 @@ def tick() -> dict:
                         (f"brief_failed: {str(exc)[:250]}", vid))
             con.commit()
     out["briefs"] = {"made": made, "failed": failed}
+
+    # 4. External documents (user-posted .txt/.md transcripts)
+    from ytbrief import external_docs as exd
+    docs_ready = [r["doc_id"] for r in con.execute(
+        "SELECT doc_id FROM external_docs WHERE state='transcript_ready' LIMIT ?", (MAX_BRIEFS_PER_TICK,))]
+    d_made = d_failed = 0
+    for doc_id in docs_ready:
+        try:
+            exd.process_document(con, doc_id)
+            d_made += 1
+        except Exception as exc:
+            d_failed += 1
+            con.execute("UPDATE external_docs SET state='dead_letter' WHERE doc_id=?", (doc_id,))
+            con.commit()
+    out["external_docs"] = {"made": d_made, "failed": d_failed}
+
     con.close()
     return out
 

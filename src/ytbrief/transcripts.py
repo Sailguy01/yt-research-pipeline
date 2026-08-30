@@ -72,7 +72,7 @@ def fetch_duration(con, video_id: str):
     """Fetch real duration via yt-dlp metadata (no download) and store it."""
     import subprocess, json as _json
     try:
-        r = subprocess.run(["yt-dlp", "--dump-json", "--no-download", f"https://youtube.com/watch?v={video_id}"],
+        r = subprocess.run(["/Users/openclaw/yt-research-pipeline/.venv/bin/yt-dlp", "--dump-json", "--no-download", f"https://youtube.com/watch?v={video_id}"],
                            capture_output=True, text=True, timeout=120)
         if r.returncode == 0:
             meta = _json.loads(r.stdout.splitlines()[0])
