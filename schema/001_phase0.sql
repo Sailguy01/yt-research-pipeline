@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS channels (
   created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   last_poll_at TEXT,
   etag         TEXT,
-  last_error   TEXT
+  last_error   TEXT,
+  last_sync_at TEXT
 );
 
 -- ---------- Videos (dedupe + state machine) ----------
