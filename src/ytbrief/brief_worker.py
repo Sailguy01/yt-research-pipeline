@@ -55,7 +55,11 @@ Produce the brief per the skill. Return ONLY valid JSON (no markdown fences) wit
   "regime_analyst": "Tightening|Neutral|Easing|Flood|Mixed-Unclear",
   "regime_conf": "High|Medium|Low",
   "regime_divergences": "indicators pointing opposite ways or 'none'",
-  "card": "telegram scan card text per skill section A (<=1500 chars)",
+  "verdict_tag": "ACT|WATCH|IGNORE",
+  "verdict_line": "one plain sentence <=15 words",
+  "watchlist": [{"asset": "BTC", "impact_clause": "one clause"}],
+  "guest_line": "guest/host credibility line per skill, or null if none identifiable",
+  "card": "telegram scan card text per skill section A (target <=1500 chars, hard 3800)",
   "report_md": "full markdown report per skill section B",
   "claims": [
     {"claim_text": "...", "label": "Claim|Opinion|Forecast|Fact|Unverified|ASR-risk",
@@ -142,6 +146,14 @@ def validate(brief: dict) -> list[str]:
             errors.append(f"banned phrase: {pat}")
     if not brief.get("claims"):
         errors.append("no claims extracted")
+    if brief.get("verdict_tag") not in ("ACT", "WATCH", "IGNORE"):
+        errors.append("missing/invalid verdict_tag")
+    if not brief.get("verdict_line"):
+        errors.append("missing verdict_line")
+    card_txt = brief.get("card", "")
+    for req in ["🎯 VERDICT", "📈 YOUR WATCHLIST", "Base-rate: speaker opinion unless marked"]:
+        if req not in card_txt:
+            errors.append(f"card missing v3 section: {req}")
     for i, c in enumerate(brief.get("claims", [])):
         if not c.get("label"):
             errors.append(f"claim {i} missing label")
@@ -203,11 +215,14 @@ def process_video(con, video_id: str, dry_run: bool = False, provider: str | Non
 
     con.execute("""INSERT INTO briefs (brief_id, video_id, analysis_version, pivotality,
                    regime_speaker, regime_analyst, regime_conf, regime_divergences,
+                   verdict_tag, verdict_line, guest_line,
                    report_path, card_text, created_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (brief_id, video_id, ANALYSIS_VERSION, brief.get("pivotality"),
                  brief.get("regime_speaker"), brief.get("regime_analyst"), brief.get("regime_conf"),
-                 brief.get("regime_divergences"), report_path, brief.get("card"), utcnow()))
+                 brief.get("regime_divergences"),
+                 brief.get("verdict_tag"), brief.get("verdict_line"), brief.get("guest_line"),
+                 report_path, brief.get("card"), utcnow()))
 
     asset_ids = {r["asset_id"] for r in con.execute("SELECT asset_id FROM assets")}
     n_claims = 0
