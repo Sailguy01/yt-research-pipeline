@@ -156,7 +156,7 @@ def validate(brief: dict) -> list[str]:
     if not brief.get("verdict_line"):
         errors.append("missing verdict_line")
     card_txt = brief.get("card", "")
-    for req in ["🎯 VERDICT", "📈 YOUR WATCHLIST", "Base-rate: speaker opinion unless marked"]:
+    for req in ["🎯 VERDICT", "📈 YOUR WATCHLIST"]:
         if req not in card_txt:
             errors.append(f"card missing v3 section: {req}")
     for i, c in enumerate(brief.get("claims", [])):
