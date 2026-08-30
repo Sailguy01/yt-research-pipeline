@@ -158,6 +158,16 @@ def process_video(con, video_id: str, dry_run: bool = False) -> str:
     raw = call_llm(prompt)
     brief = parse_json_loose(raw)
 
+    # Enum normalization (defense in depth): model may return free-text confidence
+    _conf = (brief.get("regime_conf") or "").strip().capitalize()
+    if _conf not in ("High", "Medium", "Low"):
+        _conf = "Low" if _conf else None
+    brief["regime_conf"] = _conf
+    _reg = (brief.get("regime_analyst") or "").strip()
+    if _reg not in ("Tightening", "Neutral", "Easing", "Flood", "Mixed-Unclear"):
+        _reg = "Mixed-Unclear"
+    brief["regime_analyst"] = _reg
+
     # Footer enforcement (defense in depth): append if the model omitted it
     if REQUIRED_FOOTER not in brief.get("card", ""):
         brief["card"] = (brief.get("card", "").rstrip() + f"\n\n*{REQUIRED_FOOTER}*")
