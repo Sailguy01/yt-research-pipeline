@@ -82,9 +82,14 @@ duration_s: {video.get('duration_s') or 'unknown — show duration only if known
 {task}"""
 
 
-def call_llm(prompt: str) -> str:
-    """Call the configured Hermes chat model non-interactively."""
-    r = subprocess.run(["hermes", "chat", "-q", prompt], capture_output=True, text=True, timeout=600)
+def call_llm(prompt: str, provider: str | None = None, model: str | None = None) -> str:
+    """Call Hermes chat non-interactively (-Q: final response only, no banner)."""
+    args = ["hermes", "chat", "-q", prompt, "-Q"]
+    if provider:
+        args += ["--provider", provider]
+    if model:
+        args += ["--model", model]
+    r = subprocess.run(args, capture_output=True, text=True, timeout=900)
     if r.returncode != 0:
         raise RuntimeError(f"hermes chat failed: {r.stderr[:300]}")
     return r.stdout
@@ -145,7 +150,7 @@ def validate(brief: dict) -> list[str]:
     return errors
 
 
-def process_video(con, video_id: str, dry_run: bool = False) -> str:
+def process_video(con, video_id: str, dry_run: bool = False, provider: str | None = None, model: str | None = None) -> str:
     v = con.execute("""
         SELECT v.*, c.title AS channel_title, t.source AS transcript_source, t.file_path
         FROM videos v JOIN channels c ON c.channel_id=v.channel_id
@@ -156,7 +161,7 @@ def process_video(con, video_id: str, dry_run: bool = False) -> str:
     transcript_text = open(v["file_path"]).read()
     prompt = build_prompt(dict(v), transcript_text)
     print(f"  analyzing {video_id} ({len(transcript_text)} chars)...")
-    raw = call_llm(prompt)
+    raw = call_llm(prompt, provider=provider, model=model)
     brief = parse_json_loose(raw)
 
     # Enum normalization (defense in depth): model may return free-text confidence
@@ -245,6 +250,9 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--video-id", required=True)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--model", default=None)
+    ap.add_argument("--provider", default=None)
     args = ap.parse_args()
     con = connect()
-    process_video(con, args.video_id, dry_run=args.dry_run)
+    process_video(con, args.video_id, dry_run=args.dry_run,
+                  provider=args.provider, model=args.model)
