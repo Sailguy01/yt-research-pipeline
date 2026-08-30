@@ -68,6 +68,23 @@ def save_transcript(con, video_id: str, source: str, segments: list[dict],
     return path
 
 
+def fetch_duration(con, video_id: str):
+    """Fetch real duration via yt-dlp metadata (no download) and store it."""
+    import subprocess, json as _json
+    try:
+        r = subprocess.run(["yt-dlp", "--dump-json", "--no-download", f"https://youtube.com/watch?v={video_id}"],
+                           capture_output=True, text=True, timeout=120)
+        if r.returncode == 0:
+            meta = _json.loads(r.stdout.splitlines()[0])
+            dur = int(meta.get("duration") or 0)
+            con.execute("UPDATE videos SET duration_s=? WHERE video_id=?", (dur, video_id))
+            con.commit()
+            return dur
+    except Exception:
+        pass
+    return None
+
+
 def try_transcript_api(con, video_id: str) -> str | None:
     """Rung 1+2: creator captions or auto captions via youtube-transcript-api."""
     from youtube_transcript_api import YouTubeTranscriptApi
@@ -106,6 +123,8 @@ def asr_fallback(con, video_id: str) -> str | None:
 
 def acquire(con, video_id: str, allow_asr: bool = False) -> str | None:
     """Full ladder for one video. Returns transcript path or None."""
+    if con.execute("SELECT duration_s FROM videos WHERE video_id=?", (video_id,)).fetchone()["duration_s"] is None:
+        fetch_duration(con, video_id)
     path = try_transcript_api(con, video_id)
     if path:
         return path

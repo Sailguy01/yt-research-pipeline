@@ -98,8 +98,11 @@ def poll_once(con, max_channels: int | None = None, verbose: bool = False) -> di
             stats["not_modified"] += 1
             continue
 
+        CUTOFF = "2026-08-25"  # user directive: nothing published before this date
         new_count = 0
         for entry in entries or []:
+            if (entry["published_at"] or "")[:10] < CUTOFF:
+                continue  # skip old videos entirely — never queued, never briefed
             cur = con.execute("SELECT 1 FROM videos WHERE video_id=?", (entry["video_id"],)).fetchone()
             if cur:
                 continue

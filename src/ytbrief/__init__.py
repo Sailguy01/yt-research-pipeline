@@ -39,3 +39,20 @@ def migrate(con: sqlite3.Connection):
         con.execute("INSERT OR IGNORE INTO schema_meta (version, note) VALUES (?,?)",
                     (i, fname))
         con.commit()
+
+
+def to_cst(iso_utc: str) -> str:
+    """Convert an ISO-8601 UTC timestamp to US Central (CDT/CST auto)."""
+    import datetime as _dt
+    try:
+        dt = _dt.datetime.fromisoformat(iso_utc.replace("Z", "+00:00"))
+    except ValueError:
+        return iso_utc
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_dt.timezone.utc)
+    try:
+        from zoneinfo import ZoneInfo
+        central = dt.astimezone(ZoneInfo("America/Chicago"))
+    except Exception:
+        central = dt.astimezone(_dt.timezone(_dt.timedelta(hours=-5)))
+    return central.strftime("%Y-%m-%d %H:%M CT")
