@@ -16,7 +16,7 @@ import subprocess
 import sys
 
 from . import connect, utcnow, to_cst
-from .models import call_llm_with_fallback, notify_fallback
+from .models import call_llm_with_fallback, notify_fallback, estimate_cost
 
 BRIEF_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "briefs")
 ANALYSIS_VERSION = "v2.0-skill"
@@ -208,6 +208,9 @@ def process_video(con, video_id: str, dry_run: bool = False, provider: str | Non
     if REQUIRED_FOOTER not in brief.get("report_md", ""):
         brief["report_md"] = (brief.get("report_md", "").rstrip() + f"\n\n---\n*{REQUIRED_FOOTER}*\n")
 
+    # cost tracking (estimated from sizes; model_label = what actually ran)
+    in_toks, out_toks, cost = estimate_cost(used["model"], len(prompt), len(raw))
+
     errs = validate(brief)
     if errs:
         raise ValueError("validation failed: " + "; ".join(errs))
@@ -223,13 +226,15 @@ def process_video(con, video_id: str, dry_run: bool = False, provider: str | Non
     con.execute("""INSERT INTO briefs (brief_id, video_id, analysis_version, pivotality,
                    regime_speaker, regime_analyst, regime_conf, regime_divergences,
                    verdict_tag, verdict_line, guest_line,
-                   report_path, card_text, created_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   report_path, card_text, created_at,
+                   input_tokens, output_tokens, cost_usd, model_label)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (brief_id, video_id, ANALYSIS_VERSION, brief.get("pivotality"),
                  brief.get("regime_speaker"), brief.get("regime_analyst"), brief.get("regime_conf"),
                  brief.get("regime_divergences"),
                  brief.get("verdict_tag"), brief.get("verdict_line"), brief.get("guest_line"),
-                 report_path, brief.get("card"), utcnow()))
+                 report_path, brief.get("card"), utcnow(),
+                 in_toks, out_toks, cost, used["label"]))
 
     asset_ids = {r["asset_id"] for r in con.execute("SELECT asset_id FROM assets")}
     n_claims = 0

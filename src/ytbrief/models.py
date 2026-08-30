@@ -10,6 +10,21 @@ import subprocess
 
 NOTIFY_TARGET = "telegram:515737487:4607"  # Market Video Briefs (ops notices ride the same topic for now)
 
+PRICING = {  # USD per 1M tokens (in, out) — update when models change
+    "z-ai/glm-5.3-flash": (0.07, 0.25),
+    "deepseek/deepseek-v4-flash-0731": (0.07, 0.18),
+    "grok-4.6": (0.0, 0.0),  # xai-oauth subscription — zero marginal cost
+}
+
+def estimate_cost(model_slug: str, prompt_chars: int, response_chars: int) -> tuple[int, int, float]:
+    """Estimate tokens+cost. ~4 chars/token English. Conservative: verification rounds add
+    ~3x prompt re-reads; response includes tool turns."""
+    pin, pout = PRICING.get(model_slug, (0.10, 0.30))
+    in_tokens = int((prompt_chars + response_chars * 2) / 4)   # context re-sent per verify round
+    out_tokens = int(response_chars / 4)
+    cost = (in_tokens / 1e6) * pin + (out_tokens / 1e6) * pout
+    return in_tokens, out_tokens, round(cost, 5)
+
 MODEL_CHAIN = [
     {"label": "GLM-5.3-flash", "provider": "openrouter", "model": "z-ai/glm-5.3-flash", "pin": "primary"},
     {"label": "DeepSeek-v4-flash-0731", "provider": "openrouter", "model": "deepseek/deepseek-v4-flash-0731", "pin": "backup-1"},
