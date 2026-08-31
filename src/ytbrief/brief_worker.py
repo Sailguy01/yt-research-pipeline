@@ -173,6 +173,12 @@ def validate(brief: dict) -> list[str]:
 
 
 def process_video(con, video_id: str, dry_run: bool = False, provider: str | None = None, model: str | None = None) -> str:
+    # Cutoff guard (defense in depth): manual links (origin='manual') bypass it
+    vchk = con.execute("SELECT origin, published_at FROM videos WHERE video_id=?", (video_id,)).fetchone()
+    if vchk and vchk["origin"] != "manual" and (vchk["published_at"] or "")[:10] < "2026-08-30":
+        con.execute("UPDATE videos SET state='out_of_scope', state_reason='before 2026-08-30 cutoff (guard in process_video)' WHERE video_id=?", (video_id,))
+        con.commit()
+        raise SystemExit(f"{video_id} pre-cutoff — skipped")
     v = con.execute("""
         SELECT v.*, c.title AS channel_title, t.source AS transcript_source, t.file_path
         FROM videos v JOIN channels c ON c.channel_id=v.channel_id
