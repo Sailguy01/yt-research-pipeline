@@ -128,15 +128,16 @@ def parse_json_loose(text: str) -> dict:
             return json.loads(m.group(1))
         except json.JSONDecodeError:
             pass
-    # 3) raw_decode from first { (ignores trailing chatter)
+    # 3) lenient decode: strict=False allows literal control chars inside strings
+    #    (LLMs emit real newlines in JSON string values) and raw_decode ignores trailing chatter
     start = text.find("{")
-    if start >= 0:
-        try:
-            obj, _ = json.JSONDecoder().raw_decode(text[start:])
-            return obj
-        except json.JSONDecodeError as e:
-            raise ValueError(f"JSON decode failed: {e}") from e
-    raise ValueError("no JSON object in LLM response")
+    if start < 0:
+        raise ValueError("no JSON object in LLM response")
+    try:
+        obj, _ = json.JSONDecoder(strict=False).raw_decode(text[start:])
+        return obj
+    except json.JSONDecodeError as e:
+        raise ValueError(f"JSON decode failed: {e}") from e
 
 
 def validate(brief: dict) -> list[str]:
