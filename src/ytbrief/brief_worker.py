@@ -164,9 +164,10 @@ def validate(brief: dict) -> list[str]:
     for i, c in enumerate(brief.get("claims", [])):
         if not c.get("label"):
             errors.append(f"claim {i} missing label")
-    if brief.get("relevance") == "off-liquidity-topic" and brief.get("regime_analyst") not in (None, "", "Mixed-Unclear"):
-        # forced regime on off-topic video is allowed to be Mixed-Unclear only
-        errors.append("off-topic video has forced regime classification")
+    if brief.get("relevance") == "off-liquidity-topic":
+        # off-topic videos: no forced regime — normalize instead of failing
+        brief["regime_speaker"] = brief.get("regime_speaker")
+        brief["regime_analyst"] = "Mixed-Unclear"
     return errors
 
 
@@ -228,7 +229,7 @@ def process_video(con, video_id: str, dry_run: bool = False, provider: str | Non
                    verdict_tag, verdict_line, guest_line,
                    report_path, card_text, created_at,
                    input_tokens, output_tokens, cost_usd, model_label)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (brief_id, video_id, ANALYSIS_VERSION, brief.get("pivotality"),
                  brief.get("regime_speaker"), brief.get("regime_analyst"), brief.get("regime_conf"),
                  brief.get("regime_divergences"),

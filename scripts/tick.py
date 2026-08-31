@@ -15,7 +15,7 @@ from ytbrief import brief_worker as bw
 from ytbrief import intake
 
 MAX_TRANSCRIPTS_PER_TICK = 4
-MAX_BRIEFS_PER_TICK = 2  # LLM cost control; queue drains over multiple ticks
+MAX_BRIEFS_PER_TICK = 4  # LLM cost control; ~$0.01/tick at 4 briefs
 
 
 def tick() -> dict:
