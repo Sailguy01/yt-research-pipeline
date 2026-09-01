@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
-"""Monthly ops digest: pipeline stats + actual/estimated spend + model-check reminder.
+"""Monthly ops digest — panel-revised structure (2026-09-01).
 
-Runs via Hermes cron on the 1st of each month; posts to Market Video Briefs topic.
-Also emits a WARN line if projected spend exceeds the budget ceiling.
+Structure per expert panel:
+  1. PREVIOUS MONTH (complete) — headline detail
+  2. Month-to-date for the new month (explicitly partial)
+  3. Rolling 30 days (trend view, replaces misleading this-vs-last)
+  4. All-time (one line)
+  5. Budget vs ceiling
+Model-check reminder moved to its own cron (Sept 15).
 """
 import os
 import subprocess
@@ -17,59 +22,65 @@ TARGET = "telegram:515737487:4607"
 MONTHLY_BUDGET = 5.00  # USD ceiling
 
 
-def month_bounds(dt: datetime):
-    start = dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    nxt = (start + timedelta(days=32)).replace(day=1)
-    return start, nxt
-
-
 def build_digest() -> str:
     con = connect()
     now = datetime.utcnow()
-    start_dt, end_dt = month_bounds(now)
-    prev_start_dt, prev_end_dt = month_bounds(start_dt - timedelta(days=1))
-    start, end = start_dt.isoformat(), end_dt.isoformat()
-    prev_start, prev_end = prev_start_dt.isoformat(), prev_end_dt.isoformat()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    prev_start = (month_start - timedelta(days=1)).replace(day=1)
+    roll_start = now - timedelta(days=30)
 
-    def stats(ws, we, label):
+    fmt = lambda dt: dt.strftime("%b %d")
+    month_name = prev_start.strftime("%B %Y")
+
+    def stats(ws_dt, we_dt):
+        ws, we = ws_dt.isoformat(), we_dt.isoformat()
         briefs = con.execute("SELECT COUNT(*) FROM briefs WHERE created_at>=? AND created_at<?", (ws, we)).fetchone()[0]
         cost = con.execute("SELECT COALESCE(SUM(cost_usd),0) FROM briefs WHERE created_at>=? AND created_at<?", (ws, we)).fetchone()[0]
-        toks_in = con.execute("SELECT COALESCE(SUM(input_tokens),0) FROM briefs WHERE created_at>=? AND created_at<?", (ws, we)).fetchone()[0]
-        unverified = con.execute("""SELECT COUNT(*) FROM claims c JOIN briefs b ON b.brief_id=c.brief_id
-                                    WHERE c.label='Unverified' AND b.created_at>=? AND b.created_at<?""", (ws, we)).fetchone()[0]
         claims = con.execute("""SELECT COUNT(*) FROM claims c JOIN briefs b ON b.brief_id=c.brief_id
-                                WHERE b.created_at>=? AND b.created_at<?""", (ws, we)).fetchone()[0]
-        return {"label": label, "briefs": briefs, "cost": cost, "toks_in": toks_in,
-                "claims": claims, "unverified": unverified}
+                                WHERE c.occurred_at>=? AND c.occurred_at<?""", (ws, we)).fetchone()[0]
+        unverified = con.execute("""SELECT COUNT(*) FROM claims c JOIN briefs b ON b.brief_id=c.brief_id
+                                    WHERE c.label='Unverified' AND c.occurred_at>=? AND c.occurred_at<?""", (ws, we)).fetchone()[0]
+        dead = con.execute("""SELECT COUNT(*) FROM videos WHERE state='dead_letter'
+                              AND discovered_at>=? AND discovered_at<?""", (ws, we)).fetchone()[0]
+        channels = con.execute("""SELECT c.title, COUNT(*) AS n FROM briefs b
+                                  JOIN videos v ON v.video_id=b.video_id
+                                  JOIN channels c ON c.channel_id=v.channel_id
+                                  WHERE b.created_at>=? AND b.created_at<?
+                                  GROUP BY c.title ORDER BY n DESC LIMIT 3""", (ws, we)).fetchall()
+        return {"briefs": briefs, "cost": cost, "claims": claims, "unverified": unverified,
+                "dead": dead,
+                "top_channels": ", ".join(f"{r[0]} ({r[1]})" for r in channels) or "—"}
 
-    this = stats(start, end, now.strftime("%B"))
-    prev = stats(prev_start, prev_end, (start_dt - timedelta(days=1)).strftime("%B"))
-    all_time_cost = con.execute("SELECT COALESCE(SUM(cost_usd),0) FROM briefs").fetchone()[0]
-    n_videos = con.execute("SELECT COUNT(*) FROM videos WHERE state IN ('delivered','analyzed')").fetchone()[0]
-    dead = con.execute("SELECT COUNT(*) FROM videos WHERE state='dead_letter'").fetchone()[0]
-
-    models = con.execute("""SELECT COALESCE(model_label,'(pre-tracking)') AS m, COUNT(*) AS n,
-                            COALESCE(SUM(cost_usd),0) AS c FROM briefs
-                            WHERE created_at>=? GROUP BY m ORDER BY n DESC""", (start,)).fetchall()
-
-    lines = [f"📊 Pipeline monthly digest — {this['label']}", ""]
-    lines.append(f"• Briefs delivered this month: {this['briefs']} ({prev['briefs']} last month)")
-    lines.append(f"• Claims in knowledge base: {this['claims']} ({this['unverified']} unverified)")
-    lines.append(f"• Videos processed (all time): {n_videos} · dead letters: {dead}")
-    lines.append(f"• Spend this month: ${this['cost']:.2f} (prev: ${prev['cost']:.2f}) · all-time: ${all_time_cost:.2f}")
-    if this["briefs"]:
-        lines.append(f"• Avg cost per brief: ${this['cost']/this['briefs']:.4f}")
-    if models:
-        lines.append("• Models used: " + " · ".join(f"{r['m']} ×{r['n']} (${r['c']:.2f})" for r in models))
-    lines.append("")
-    if this["cost"] > MONTHLY_BUDGET:
-        lines.append(f"⚠️ BUDGET: ${this['cost']:.2f} exceeds the ${MONTHLY_BUDGET:.2f} ceiling — review model choice / verification depth.")
-    else:
-        lines.append(f"✅ Budget: ${this['cost']:.2f} of ${MONTHLY_BUDGET:.2f} ceiling")
-    lines.append("")
-    lines.append("🔄 Monthly model check: pinned chain is GLM-5.3-flash → DeepSeek-v4-flash-0731 → Grok-4.6. New model worth testing? Say BENCHMARK <provider/model> and the pipeline will duel it against the pinned chain on the golden set.")
+    prev = stats(prev_start, month_start)
+    mtd = stats(month_start, now)
+    roll = stats(roll_start, now)
+    all_briefs = con.execute("SELECT COUNT(*) FROM briefs").fetchone()[0]
+    all_cost = con.execute("SELECT COALESCE(SUM(cost_usd),0) FROM briefs").fetchone()[0]
     con.close()
-    return "\n".join(lines)
+
+    L = [f"📊 Ops Digest — {now.strftime('%b %d, %Y')}", ""]
+    # 1. Previous month (complete) — headline
+    L.append(f"■ {month_name} (complete)")
+    L.append(f"• Briefs delivered: {prev['briefs']}")
+    L.append(f"• Spend: ${prev['cost']:.2f}" + (f" (avg ${prev['cost']/prev['briefs']:.4f}/brief)" if prev['briefs'] else ""))
+    uv_rate = f"{100*prev['unverified']/prev['claims']:.0f}%" if prev['claims'] else "—"
+    L.append(f"• Unverified rate: {uv_rate} • Dead letters: {prev['dead']}")
+    L.append(f"• Top channels: {prev['top_channels']}")
+    ok = "✅" if prev['cost'] <= MONTHLY_BUDGET else "⚠️"
+    L.append(f"• Budget: {ok} ${prev['cost']:.2f} of ${MONTHLY_BUDGET:.2f} ceiling")
+    L.append("")
+    # 2. Month to date
+    L.append(f"■ {now.strftime('%B')} so far (month-to-date, through {now.strftime('%b %d')} {now.strftime('%H:%M')} UTC)")
+    L.append(f"• Briefs: {mtd['briefs']} • Spend: ${mtd['cost']:.2f}")
+    L.append("")
+    # 3. Rolling 30 days
+    L.append(f"■ Rolling 30 days ({fmt(roll_start)}–{fmt(now)})")
+    avg = f" • Avg: ${roll['cost']/roll['briefs']:.4f}/brief" if roll["briefs"] else ""
+    L.append(f"• Briefs: {roll['briefs']} • Spend: ${roll['cost']:.2f}{avg}")
+    L.append("")
+    # 4. All-time
+    L.append(f"■ All-time: {all_briefs} briefs • ${all_cost:.2f} spent")
+    return "\n".join(L)
 
 
 if __name__ == "__main__":
