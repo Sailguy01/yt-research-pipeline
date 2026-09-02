@@ -1,3 +1,4 @@
+import os
 """Model pinning + fallback chain for the brief pipeline.
 
 Primary:  GLM-5.3-flash via OpenRouter (pinned 2026-08-30 per benchmark)
@@ -45,7 +46,23 @@ def notify_fallback(used: dict, failed: list[dict], video_id: str):
                    capture_output=True, text=True, timeout=60)
 
 
-def call_llm_with_fallback(prompt: str, video_id: str = "?") -> tuple[str, dict, list[dict]]:
+HERMES_BIN = os.path.expanduser("~/.local/bin/hermes")
+
+def call_llm(prompt: str, provider: str | None = None, model: str | None = None) -> str:
+    """Call Hermes chat non-interactively (-Q: final response only)."""
+    import subprocess
+    args = [HERMES_BIN, "chat", "-q", prompt, "-Q"]
+    if provider:
+        args += ["--provider", provider]
+    if model:
+        args += ["--model", model]
+    r = subprocess.run(args, capture_output=True, text=True, timeout=900)
+    if r.returncode != 0:
+        raise RuntimeError(f"hermes chat failed: {r.stderr[:300]}")
+    return r.stdout
+
+
+def call_llm_with_fallback(prompt: str, video_id: str = "?", max_attempts_per_model: int = 2) -> tuple[str, dict, list[dict]]:
     """Try the chain in order. Returns (text, used_model, failures)."""
     import os
     from ytbrief.brief_worker import call_llm
@@ -58,12 +75,14 @@ def call_llm_with_fallback(prompt: str, video_id: str = "?") -> tuple[str, dict,
 
     failures = []
     for m in chain:
-        try:
-            text = call_llm(prompt, provider=m["provider"], model=m["model"])
-            if not text or len(text.strip()) < 50:
-                raise RuntimeError("empty/too-short response")
-            return text, m, failures
-        except Exception as exc:
-            failures.append({"label": m["label"], "provider": m["provider"],
-                             "model": m["model"], "error": str(exc)[:200]})
+        for attempt in range(1, max_attempts_per_model + 1):
+            try:
+                text = call_llm(prompt, provider=m["provider"], model=m["model"])
+                if not text or len(text.strip()) < 50:
+                    raise RuntimeError("empty/too-short response")
+                return text, m, failures
+            except Exception as exc:
+                failures.append({"label": m["label"], "provider": m["provider"],
+                                 "model": m["model"], "error": str(exc)[:200],
+                                 "attempt": attempt})
     raise RuntimeError(f"All models failed: {failures}")

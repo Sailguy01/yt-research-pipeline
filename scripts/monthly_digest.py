@@ -56,7 +56,8 @@ def build_digest() -> str:
     roll = stats(roll_start, now)
     all_briefs = con.execute("SELECT COUNT(*) FROM briefs").fetchone()[0]
     all_cost = con.execute("SELECT COALESCE(SUM(cost_usd),0) FROM briefs").fetchone()[0]
-    con.close()
+
+    fmt = lambda dt: dt.strftime("%b %d")
 
     L = [f"📊 Ops Digest — {now.strftime('%b %d, %Y')}", ""]
     # 1. Previous month (complete) — headline
@@ -66,7 +67,7 @@ def build_digest() -> str:
     uv_rate = f"{100*prev['unverified']/prev['claims']:.0f}%" if prev['claims'] else "—"
     shorts = con.execute("""SELECT COUNT(*) FROM videos WHERE state='out_of_scope'
                             AND state_reason LIKE 'Short — excluded%'
-                            AND discovered_at>=? AND discovered_at<?""", (ws, we)).fetchone()[0]
+                            AND discovered_at>=? AND discovered_at<?""", (prev_start.isoformat(), month_start.isoformat())).fetchone()[0]
     L.append(f"• Unverified rate: {uv_rate} • Dead letters: {prev['dead']} • Shorts excluded: {shorts}")
     L.append(f"• Top channels: {prev['top_channels']}")
     ok = "✅" if prev['cost'] <= MONTHLY_BUDGET else "⚠️"
@@ -83,6 +84,7 @@ def build_digest() -> str:
     L.append("")
     # 4. All-time
     L.append(f"■ All-time: {all_briefs} briefs • ${all_cost:.2f} spent")
+    con.close()
     return "\n".join(L)
 
 

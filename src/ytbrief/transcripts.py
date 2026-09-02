@@ -14,7 +14,8 @@ TRANSCRIPT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os
 # Failure categories (plan §4) — terminal vs retryable
 CATEGORIES = {
     "captions_processing": "retryable",     # auto captions may lag upload
-    "captions_disabled":   "terminal",
+    "captions_disabled":   "retryable",     # observed: often transient (rate-limit);
+                                            # real disabled ones retry harmlessly at low cost
     "video_unavailable":   "terminal",      # private/deleted/members-only
     "throttled":           "retryable",
     "parser_broken":       "retryable",     # library breakage — flag for update

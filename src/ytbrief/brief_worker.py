@@ -195,10 +195,26 @@ def process_video(con, video_id: str, dry_run: bool = False, provider: str | Non
         used = {"label": model, "provider": provider, "model": model}
         failures = []
     else:
-        raw, used, failures = call_llm_with_fallback(prompt, video_id=video_id)
+        # parse inside the fallback loop: a JSON failure retries the model (truncation is transient)
+        import ytbrief.models as _md
+        used, failures, brief = None, [], None
+        chain = _md.MODEL_CHAIN
+        for m in chain:
+            for attempt in (1, 2):
+                try:
+                    raw = _md.call_llm(prompt, provider=m["provider"], model=m["model"])
+                    brief = parse_json_loose(raw)
+                    used, _ = m, failures
+                    break
+                except Exception as exc:
+                    failures.append({"label": m["label"], "provider": m["provider"],
+                                     "model": m["model"], "error": str(exc)[:200], "attempt": attempt})
+                if brief: break
+            if brief: break
+        if not brief:
+            raise RuntimeError(f"All models failed: {failures}")
         if failures:
             notify_fallback(used, failures, video_id)
-    brief = parse_json_loose(raw)
 
     # Enum normalization (defense in depth): model may return free-text confidence
     _conf = (brief.get("regime_conf") or "").strip().capitalize()
