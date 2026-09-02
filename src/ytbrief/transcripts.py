@@ -68,8 +68,21 @@ def save_transcript(con, video_id: str, source: str, segments: list[dict],
     return path
 
 
+def is_short_canonical(video_id: str) -> bool | None:
+    """YouTube's own classifier: /shorts/<id> stays on /shorts/ iff it's a Short.
+    Returns True/False, or None if the check failed (network etc.)."""
+    import urllib.request, urllib.error
+    req = urllib.request.Request(f"https://www.youtube.com/shorts/{video_id}",
+                                 headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        resp = urllib.request.urlopen(req, timeout=15)
+        return f"/shorts/{video_id}" in resp.geturl()
+    except Exception:
+        return None
+
+
 def fetch_duration(con, video_id: str):
-    """Fetch real duration via yt-dlp metadata (no download) and store it."""
+    """Fetch real duration + description + short-classification via yt-dlp (no download)."""
     import subprocess, json as _json
     try:
         r = subprocess.run(["/Users/openclaw/yt-research-pipeline/.venv/bin/yt-dlp", "--dump-json", "--no-download", f"https://youtube.com/watch?v={video_id}"],
@@ -78,8 +91,20 @@ def fetch_duration(con, video_id: str):
             meta = _json.loads(r.stdout.splitlines()[0])
             dur = int(meta.get("duration") or 0)
             desc = (meta.get("description") or "")[:4000]
-            con.execute("UPDATE videos SET duration_s=?, description=? WHERE video_id=?",
-                        (dur, desc, video_id))
+            w, h = meta.get("width"), meta.get("height")
+            portrait = bool(w and h and h > w)
+            # canonical YouTube classification corroborated by aspect+duration
+            canonical = is_short_canonical(video_id)
+            if canonical is True:
+                is_short = 1
+            elif canonical is False and portrait and dur and dur <= 180:
+                is_short = 1   # vertical <=3min: Short by any reasonable definition
+            elif canonical is False:
+                is_short = 0
+            else:
+                is_short = 1 if (portrait and dur and dur <= 180) else None
+            con.execute("UPDATE videos SET duration_s=?, description=?, is_short=? WHERE video_id=?",
+                        (dur, desc, is_short, video_id))
             con.commit()
             return dur
     except Exception:
@@ -125,8 +150,17 @@ def asr_fallback(con, video_id: str) -> str | None:
 
 def acquire(con, video_id: str, allow_asr: bool = False) -> str | None:
     """Full ladder for one video. Returns transcript path or None."""
-    if con.execute("SELECT duration_s FROM videos WHERE video_id=?", (video_id,)).fetchone()["duration_s"] is None:
+    row = con.execute("SELECT origin, is_short FROM videos WHERE video_id=?", (video_id,)).fetchone()
+    if row and row["is_short"] is None:
         fetch_duration(con, video_id)
+        row = con.execute("SELECT origin, is_short FROM videos WHERE video_id=?", (video_id,)).fetchone()
+    # Short exclusion (user directive): canonical + corroborated classification.
+    # Manual links bypass — an explicit request is its own authorization.
+    if row and row["is_short"] == 1 and row["origin"] != "manual":
+        con.execute("UPDATE videos SET state='out_of_scope', state_reason='Short — excluded (user directive)' WHERE video_id=?",
+                    (video_id,))
+        con.commit()
+        return None
     path = try_transcript_api(con, video_id)
     if path:
         return path

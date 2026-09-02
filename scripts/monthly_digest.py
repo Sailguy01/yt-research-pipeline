@@ -64,7 +64,10 @@ def build_digest() -> str:
     L.append(f"• Briefs delivered: {prev['briefs']}")
     L.append(f"• Spend: ${prev['cost']:.2f}" + (f" (avg ${prev['cost']/prev['briefs']:.4f}/brief)" if prev['briefs'] else ""))
     uv_rate = f"{100*prev['unverified']/prev['claims']:.0f}%" if prev['claims'] else "—"
-    L.append(f"• Unverified rate: {uv_rate} • Dead letters: {prev['dead']}")
+    shorts = con.execute("""SELECT COUNT(*) FROM videos WHERE state='out_of_scope'
+                            AND state_reason LIKE 'Short — excluded%'
+                            AND discovered_at>=? AND discovered_at<?""", (ws, we)).fetchone()[0]
+    L.append(f"• Unverified rate: {uv_rate} • Dead letters: {prev['dead']} • Shorts excluded: {shorts}")
     L.append(f"• Top channels: {prev['top_channels']}")
     ok = "✅" if prev['cost'] <= MONTHLY_BUDGET else "⚠️"
     L.append(f"• Budget: {ok} ${prev['cost']:.2f} of ${MONTHLY_BUDGET:.2f} ceiling")

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  :root{
+    --fg: #1a2b3c; --muted:#5a6a7a; --accent:#0a7d4f; --warn:#b9770e;
+    --skip:#8a8f98; --border:#dfe5ea; --card:#f7f9fa; --ver:#0a7d4f;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--fg);background:#eef2f5;padding:18px;max-width:720px;margin:0 auto}
+  h1{font-size:26px;letter-spacing:-.5px;margin-bottom:4px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+  .speed{display:flex;gap:8px;margin-bottom:14px}
+  .speed .s{flex:1;border-radius:10px;padding:8px 10px;text-align:center;font-weight:700;font-size:12.5px}
+  .s1{background:#0a7d4f;color:#fff}.s2{background:#b9770e;color:#fff}.s3{background:#3c5a78;color:#fff}
+  .s small{display:block;font-weight:400;font-size:10.5px;opacity:.85}
+  .mock{background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;font-size:11.5px;line-height:1.5;margin-bottom:14px}
+  .mock .row{display:flex;gap:8px;padding:5px 0;border-bottom:1px dashed #edf1f4;align-items:flex-start}
+  .mock .row:last-child{border-bottom:none}
+  .tag{flex-shrink:0;width:118px;font-weight:700;font-size:10.5px;color:#fff;border-radius:6px;padding:2px 7px;text-align:center}
+  .mock .exp{flex:1}
+  .exp b{font-size:11.5px}
+  .exp .why{color:var(--muted);font-size:10.5px;display:block;margin-top:1px}
+  .t-head{background:#3c5a78}.t-guest{background:#6d5aa8}.t-verdict{background:#0a7d4f}
+  .t-watch{background:#b9770e}.t-bottom{background:#3c5a78}.t-verify{background:#0a7d4f}
+  .t-changed{background:#8a8f98}.t-moments{background:#6d5aa8}.t-footer{background:#8a8f98}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  .tile{background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:12px}
+  .tile h3{font-size:13px;margin-bottom:6px}
+  .tile ul{list-style:none;font-size:11px;line-height:1.55;color:#33414e}
+  .tile li{padding:3px 0 3px 16px;position:relative}
+  .tile li::before{content:"▸";position:absolute;left:2px;color:var(--accent)}
+  .marks{background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+  .marks h3{font-size:13px;margin-bottom:8px}
+  .marks .m{display:flex;gap:10px;align-items:flex-start;padding:4px 0;font-size:11px;line-height:1.45}
+  .marks .m b{flex-shrink:0}
+  .chk{color:var(--ver);font-weight:800}
+  .badges{display:flex;gap:8px;margin:10px 0 2px}
+  .badge{flex:1;text-align:center;border-radius:8px;padding:7px 4px;font-weight:800;font-size:12px}
+  .b-act{background:#0a7d4f;color:#fff}.b-watch{background:#b9770e;color:#fff}.b-ignore{background:#8a8f98;color:#fff}
+  .badge small{display:block;font-weight:400;font-size:9.5px;opacity:.9}
+  .note{background:#fff8e6;border:1.5px solid #ecd9a0;border-radius:10px;padding:9px 12px;font-size:11px;line-height:1.5;color:#6b5310}
+  .footer-line{margin-top:12px;text-align:center;color:var(--muted);font-size:10px}
+  @media print{ body{background:#fff;padding:0} }
+</style>
+</head>
+<body>
+
+<h1>How to Read Your Video Brief</h1>
+<div class="sub">A field guide to the Telegram research brief — three reading speeds, every section decoded.</div>
+
+<div class="speed">
+  <div class="s s1">2 SECONDS<small>Header + Verdict → keep or skip</small></div>
+  <div class="s s2">10 SECONDS<small>Watchlist + Bottom Line → what & why</small></div>
+  <div class="s s3">1 MINUTE<small>Verify + Key Moments → dig in & check</small></div>
+</div>
+
+<div class="mock">
+  <div class="row"><span class="tag t-head">HEADER LINE</span>
+    <span class="exp"><b>🧭 Topic · duration · ⏱ transcript quality · Pivotal N/5 · Confidence H/M/L</b>
+    <span class="why">Pivotal = how many load-bearing ideas the video holds (brief length follows this, NOT video length). Confidence = how solid the facts are — it tells you how hard to run the VERIFY items.</span></span></div>
+  <div class="row"><span class="tag t-head">TITLE + CHANNEL</span>
+    <span class="exp"><b>Linked title · channel · published time (CST)</b>
+    <span class="why">Title click = the source video. Times are always Central.</span></span></div>
+  <div class="row"><span class="tag t-guest">🎙 GUEST LINE</span>
+    <span class="exp"><b>Who is talking — name, affiliation, credibility tier T1–T4, conflict flags</b>
+    <span class="why">T1 institutional (heavy weight) · T2 established analyst (bias noted) · T3 unknown (narrative only) · T4 promotional (near zero). Identity comes from video metadata; unverified is labeled honestly.</span></span></div>
+  <div class="row"><span class="tag t-verdict">🎯 VERDICT</span>
+    <span class="exp"><b>One bold sentence + a triage tag: ACT / WATCH / IGNORE</b>
+    <span class="why">Your skip-or-keep decision in plain language. ACT = changes the picture for a watched asset. WATCH = worth 30 seconds. IGNORE = routine.</span></span></div>
+  <div class="row"><span class="tag t-watch">📈 YOUR WATCHLIST</span>
+    <span class="exp"><b>→ max 3 affected tickers, one-clause impact each</b>
+    <span class="why">Your money relevance. "→ none directly" = safe to skip for portfolio purposes.</span></span></div>
+  <div class="row"><span class="tag t-bottom">BOTTOM LINE</span>
+    <span class="exp"><b>Plain bullets — the speaker's core claims, one idea each</b>
+    <span class="why">Length follows information density: thin video = few bullets, dense video = more. Never padded, never truncated.</span></span></div>
+  <div class="row"><span class="tag t-verify">✅ VERIFY</span>
+    <span class="exp"><b>Max 3 items, strongest corroboration first</b>
+    <span class="why">✓ items were checked before sending (named source + date). Items without ✓ say exactly how to confirm — that's your one-click homework.</span></span></div>
+  <div class="row"><span class="tag t-changed">WHAT CHANGED</span>
+    <span class="exp"><b>Delta vs prior coverage — omitted when nothing changed</b></span></div>
+  <div class="row"><span class="tag t-moments">🕐 KEY MOMENTS</span>
+    <span class="exp"><b>Timestamped links into the video (max 5)</b>
+    <span class="why">🎯 marks the single most decision-relevant moment — start there. Timestamps are honest: ±5s for auto-captions, ±10s for ASR, exact only for creator captions.</span></span></div>
+  <div class="row"><span class="tag t-footer">FOOTER</span>
+    <span class="exp"><b>Regime — speaker vs analyst · Unverified count · not-advice footer</b>
+    <span class="why">What the speaker claims and what the analyst infers are always kept separate. The unverified count is honest gaps, not hidden ones.</span></span></div>
+</div>
+
+<div class="grid">
+  <div class="tile">
+    <h3>✓ The trust marks</h3>
+    <ul>
+      <li><b class="chk">✓</b> = verified against a named, dated source before the brief was sent</li>
+      <li><b>no mark</b> = speaker's claim — opinion, forecast, or unverified (base rate)</li>
+      <li><b>Unverified: N</b> in the footer = count of claims the pipeline could not check</li>
+      <li>Regime lines never merge what the speaker said with what the analyst infers</li>
+    </ul>
+  </div>
+  <div class="tile">
+    <h3>🎙 Credibility tiers</h3>
+    <ul>
+      <li><b>T1</b> — verifiable institutional record → weight heavily</li>
+      <li><b>T2</b> — established analyst → informed opinion, bias noted</li>
+      <li><b>T3</b> — unknown → narrative only, never analysis</li>
+      <li><b>T4</b> — promotional/conflict → weight near zero</li>
+      <li>Conflicts are stated as facts, not editorial labels</li>
+    </ul>
+  </div>
+</div>
+
+<div class="marks">
+  <h3>Reading speed by triage tag</h3>
+  <div class="badges">
+    <div class="badge b-act">ACT<small>read fully — watchlist impact</small></div>
+    <div class="badge b-watch">WATCH<small>30 seconds — verdict + bullets</small></div>
+    <div class="badge b-ignore">IGNORE<small>skim the verdict, move on</small></div>
+  </div>
+  <div class="m" style="margin-top:8px"><span><b>Pair the tag with Pivotal + Confidence:</b> Pivotal 4–5 = read fully regardless of tag. Confidence L = run the VERIFY items yourself before relying on numbers. Transcript source sets timestamp precision: creator captions exact, auto-captions ±5s, ASR ±10s.</span></div>
+</div>
+
+<div class="note"><b>The one rule that never changes:</b> brief length follows the number of pivotal ideas, never video length — a 2-hour video with one key point gets a few bullets, a 20-minute video dense with claims gets the full card. And every brief ends the same way: scenarios are analytical, not personalized investment advice.</div>
+
+<div class="footer-line">YouTube Research Pipeline · card format v3 · Market Video Briefs</div>
+
+</body>
+</html>
