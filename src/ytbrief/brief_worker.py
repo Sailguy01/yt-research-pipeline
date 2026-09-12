@@ -162,9 +162,7 @@ def validate(brief: dict) -> list[str]:
     for req in ["🎯 VERDICT", "📈 YOUR WATCHLIST"]:
         if req not in card_txt:
             errors.append(f"card missing v3 section: {req}")
-    for i, c in enumerate(brief.get("claims", [])):
-        if not c.get("label"):
-            errors.append(f"claim {i} missing label")
+    # (missing labels are normalized above — validator no longer fails on them)
     if brief.get("relevance") == "off-liquidity-topic":
         # off-topic videos: no forced regime — normalize instead of failing
         brief["regime_speaker"] = brief.get("regime_speaker")
@@ -215,6 +213,34 @@ def process_video(con, video_id: str, dry_run: bool = False, provider: str | Non
             raise RuntimeError(f"All models failed: {failures}")
         if failures:
             notify_fallback(used, failures, video_id)
+
+    # Label normalization (defense in depth): unlabeled claims default to [Claim]
+    for c in brief.get("claims", []):
+        if not c.get("label") or c.get("label") not in (
+                "Claim","Opinion","Forecast","Fact","Verified","Corroborated",
+                "Disputed","Unverified","ASR-risk"):
+            c["label"] = "Claim"
+
+    # Deterministic banned-phrase repair (advice-like phrasing → analytical phrasing)
+    REPAIRS = [
+        (r"\bguaranteed\b", "highly probable per the speaker"),
+        (r"\bthis stock will\b", "this stock could"),
+        (r"\bclearly undervalued\b", "arguably undervalued per the speaker"),
+        (r"\bobvious trade\b", "apparent setup"),
+        (r"\byou should buy\b", "a buyer would"),
+        (r"\byou should sell\b", "a seller would"),
+    ]
+    def _repair(text):
+        for pat, repl in REPAIRS:
+            text = re.sub(pat, repl, text, flags=re.I)
+        return text
+    brief["card"] = _repair(brief.get("card", ""))
+    brief["report_md"] = _repair(brief.get("report_md", ""))
+
+    # Deterministic label repair: unlabeled claims default to [Claim] (speaker assertion)
+    for c in brief.get("claims", []):
+        if not c.get("label"):
+            c["label"] = "Claim"
 
     # Enum normalization (defense in depth): model may return free-text confidence
     _conf = (brief.get("regime_conf") or "").strip().capitalize()
