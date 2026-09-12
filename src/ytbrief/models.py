@@ -12,8 +12,8 @@ import subprocess
 NOTIFY_TARGET = "telegram:515737487:4607"  # Market Video Briefs (ops notices ride the same topic for now)
 
 PRICING = {  # USD per 1M tokens (in, out) — update when models change
-    "z-ai/glm-5.3-flash": (0.07, 0.25),
-    "deepseek/deepseek-v4-flash-0731": (0.07, 0.18),
+    "z-ai/glm-5.3-flash": (0.150, 0.500),
+    "deepseek/deepseek-v4.1-flash": (0.150, 0.600),
     "grok-4.6": (0.0, 0.0),  # xai-oauth subscription — zero marginal cost
 }
 
@@ -28,7 +28,7 @@ def estimate_cost(model_slug: str, prompt_chars: int, response_chars: int) -> tu
 
 MODEL_CHAIN = [
     {"label": "GLM-5.3-flash", "provider": "openrouter", "model": "z-ai/glm-5.3-flash", "pin": "primary"},
-    {"label": "DeepSeek-v4-flash-0731", "provider": "openrouter", "model": "deepseek/deepseek-v4-flash-0731", "pin": "backup-1"},
+    {"label": "DeepSeek-v4.1-flash", "provider": "openrouter", "model": "deepseek/deepseek-v4.1-flash", "pin": "backup-1"},
     {"label": "Grok-4.6", "provider": "xai-oauth", "model": "grok-4.6", "pin": "backup-2"},
 ]
 
@@ -58,7 +58,8 @@ def call_llm(prompt: str, provider: str | None = None, model: str | None = None)
         args += ["--model", model]
     r = subprocess.run(args, capture_output=True, text=True, timeout=900)
     if r.returncode != 0:
-        raise RuntimeError(f"hermes chat failed: {r.stderr[:300]}")
+        tail = (r.stderr or r.stdout or "")[-300:]
+        raise RuntimeError(f"hermes chat rc={r.returncode}: {tail}")
     return r.stdout
 
 

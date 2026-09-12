@@ -11,26 +11,26 @@ sys.path.insert(0, "/Users/openclaw/yt-research-pipeline/src")
 from ytbrief import connect
 
 HOME = os.path.expanduser("~")
-GOLDEN = [
-    # (video_id, description)
-    ("GWafMbZLzT4", "3-min Treasury clip (short/thin)"),
-    ("_LqxuuQc5Vw", "out-of-scope test: Jan 2024 BTC video — must be handled"),
-    ("fOR1uiPD9w4", "16K-char EU/macro video (medium density)"),
-]
-# NOTE: _LqxuuQc5Vw was marked out_of_scope — exclude from golden; replace with another
-GOLDEN = [g for g in GOLDEN if g[0] != "_LqxuuQc5Vw"]
-# pick one more from transcript_ready backlog
+# Fresh golden set: 3 recent delivered videos spanning thin/medium/dense, deterministic pick
 con = connect()
-extra = con.execute("""SELECT v.video_id FROM videos v JOIN transcripts t USING(video_id)
-                       WHERE v.state='transcript_ready' LIMIT 1""").fetchone()
-if extra:
-    GOLDEN.append((extra["video_id"], "backlog transcript_ready video"))
+rows = con.execute("""SELECT v.video_id, t.char_count FROM videos v
+                      JOIN transcripts t ON t.video_id=v.video_id
+                      WHERE v.state='delivered' ORDER BY v.published_at DESC LIMIT 12""").fetchall()
 con.close()
+if rows:
+    rows_sorted = sorted(rows, key=lambda r: r["char_count"])
+    thin = rows_sorted[len(rows_sorted)//10]      # ~10th percentile
+    dense = rows_sorted[-1]                        # largest
+    med = min(rows_sorted, key=lambda r: abs(r["char_count"] - 15000))  # closest to 15K
+    GOLDEN = [(thin["video_id"], f"thin ({thin['char_count']} chars)"),
+              (med["video_id"], f"medium ({med['char_count']} chars)"),
+              (dense["video_id"], f"dense ({dense['char_count']} chars)")]
+else:
+    GOLDEN = []
 
 MODELS = [
     {"label": "GLM-5.3-flash (OR)", "provider": "openrouter", "model": "z-ai/glm-5.3-flash"},
-    {"label": "DeepSeek-v4-flash-0731 (OR)", "provider": "openrouter", "model": "deepseek/deepseek-v4-flash-0731"},
-    {"label": "Grok-4.6 (xai-oauth)", "provider": "xai-oauth", "model": "grok-4.6"},
+    {"label": "DeepSeek-v4.1-flash (OR)", "provider": "openrouter", "model": "deepseek/deepseek-v4.1-flash"},
 ]
 
 REQUIRED_LABELS = {"Claim", "Opinion", "Forecast", "Fact", "Verified", "Corroborated",
@@ -56,10 +56,18 @@ def run_one(provider: str, model: str, video_id: str) -> dict:
 
     prompt = bw.build_prompt(dict(v), transcript_text)
     t0 = time.time()
-    try:
-        raw = bw.call_llm(prompt, provider=provider, model=model)
-    except Exception as exc:
-        return {"error": str(exc)[:200], "wall_s": round(time.time()-t0,1)}
+    raw = None
+    last_err = None
+    for attempt in (1, 2):   # retry once on transient failure
+        try:
+            raw = bw.call_llm(prompt, provider=provider, model=model)
+            break
+        except Exception as exc:
+            last_err = str(exc)
+            last_err_stderr = getattr(exc, "stderr", "") or ""
+    wall = time.time() - t0
+    if raw is None:
+        return {"error": (last_err or "?")[-300:], "wall_s": round(wall,1)}
     wall = time.time() - t0
     try:
         brief = bw.parse_json_loose(raw)
@@ -98,7 +106,7 @@ def main():
             results[m["label"]][vid] = res
             print(f"    -> {json.dumps(res)[:220]}")
 
-    out = os.path.join(HOME, "yt-research-pipeline/data/benchmark_results.json")
+    out = "/Users/openclaw/yt-research-pipeline/data/benchmark_results.json"
     with open(out, "w") as f:
         json.dump({"golden": GOLDEN, "results": results}, f, indent=2)
     print(f"\nsaved: {out}")
