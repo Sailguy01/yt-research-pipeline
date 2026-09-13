@@ -32,7 +32,7 @@ def tick() -> dict:
     vids = [r["video_id"] for r in con.execute(
         """SELECT v.video_id FROM videos v
            LEFT JOIN transcripts t ON t.video_id = v.video_id
-           WHERE v.state='discovered' AND t.video_id IS NULL
+           WHERE v.state IN ('discovered','waiting_captions') AND t.video_id IS NULL
            ORDER BY v.priority DESC, v.published_at ASC LIMIT ?""",
         (MAX_TRANSCRIPTS_PER_TICK,))]
     # manual submissions bypass the Aug-25 cutoff: they are never filtered by date
