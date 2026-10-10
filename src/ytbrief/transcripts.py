@@ -141,12 +141,55 @@ def _record_failure(con, video_id: str, category: str, detail: str):
 
 def asr_fallback(con, video_id: str) -> str | None:
     """Rung 3: yt-dlp audio download -> local whisper.cpp -> delete audio.
-    NOT implemented until whisper.cpp benchmark (plan: benchmark vs MLX first)."""
-    # Placeholder: queue for ASR lane rather than fake success.
-    con.execute("UPDATE videos SET state='waiting_captions', state_reason='queued_for_asr' WHERE video_id=?",
-                (video_id,))
-    con.commit()
-    return None
+    Benchmark (2026-10-10, Apple M4): medium = 7.8x realtime, best financial-entity
+    accuracy (capitalized tickers); turbo = 13.7x realtime, lowercase. medium chosen."""
+    import subprocess, os as _os, glob as _glob
+    YTDLP = _os.path.expanduser("~/yt-research-pipeline/.venv/bin/yt-dlp")
+    WHISPER = "/opt/homebrew/bin/whisper-cli"
+    MODEL = _os.path.expanduser("~/yt-research-pipeline/data/models/ggml-medium.bin")
+    TMP = _os.path.expanduser("~/yt-research-pipeline/data/asr_tmp")
+    _os.makedirs(TMP, exist_ok=True)
+    wav = f"{TMP}/{video_id}.wav"
+
+    def _cleanup():
+        for f in _glob.glob(f"{TMP}/{video_id}.*"):
+            try: _os.remove(f)
+            except OSError: pass
+
+    try:
+        # 1. audio-only download (16kHz mono wav)
+        r = subprocess.run([YTDLP, "--js-runtimes", "/Users/openclaw/.hermes/tools/node-26.7.0-darwin-arm64/bin/node", "-x", "--audio-format", "wav",
+                            "--audio-quality", "16K", "-o", wav,
+                            f"https://youtube.com/watch?v={video_id}"],
+                           capture_output=True, text=True, timeout=590)
+        if r.returncode != 0 or not _os.path.exists(wav):
+            con.execute("UPDATE videos SET state='waiting_captions', state_reason=? WHERE video_id=?",
+                        (f"asr_failed: download: {(r.stderr or '')[:120]}", video_id))
+            con.commit()
+            return None
+        # 2. local whisper transcription
+        r = subprocess.run([WHISPER, "-m", MODEL, "-f", wav, "-oj", "-of", f"{TMP}/{video_id}"],
+                           capture_output=True, text=True, timeout=3500)
+        jf = f"{TMP}/{video_id}.json"
+        if r.returncode != 0 or not _os.path.exists(jf):
+            con.execute("UPDATE videos SET state='waiting_captions', state_reason=? WHERE video_id=?",
+                        (f"asr_failed: whisper: {(r.stderr or '')[:120]}", video_id))
+            con.commit()
+            return None
+        # 3. convert to timestamped segments
+        import json as _json
+        d = _json.load(open(jf))
+        segments = [{"start": sg["offsets"]["from"]/1000.0, "text": sg["text"]}
+                    for sg in d.get("transcription", [])]
+        path = save_transcript(con, video_id, "local_asr", segments, asr_model="ggml-medium")
+        return path
+    except Exception as exc:
+        con.execute("UPDATE videos SET state='waiting_captions', state_reason=? WHERE video_id=?",
+                    (f"asr_failed: {str(exc)[:150]}", video_id))
+        con.commit()
+        return None
+    finally:
+        _cleanup()  # audio always deleted
 
 
 def acquire(con, video_id: str, allow_asr: bool = False) -> str | None:
@@ -165,7 +208,18 @@ def acquire(con, video_id: str, allow_asr: bool = False) -> str | None:
     path = try_transcript_api(con, video_id)
     if path:
         return path
-    if allow_asr:
+    # ASR trigger policy: captions failed AND the video has been waiting ≥2 hours
+    # (slow auto-caption generation gets its window first; genuinely captionless
+    # videos go to local transcription quickly without wasting CPU on fresh ones)
+    import datetime as _dt
+    v = con.execute("SELECT published_at, discovered_at FROM videos WHERE video_id=?", (video_id,)).fetchone()
+    ref = v["published_at"] or v["discovered_at"]
+    try:
+        ref_dt = _dt.datetime.fromisoformat(ref.replace("Z", "+00:00"))
+        age_h = (_dt.datetime.now(_dt.timezone.utc) - ref_dt).total_seconds() / 3600
+    except Exception:
+        age_h = 999
+    if allow_asr or age_h >= 2:
         return asr_fallback(con, video_id)
     return None
 
