@@ -98,7 +98,7 @@ def poll_once(con, max_channels: int | None = None, verbose: bool = False) -> di
             stats["not_modified"] += 1
             continue
 
-        CUTOFF = "2026-08-30"  # user directive: nothing published before this date
+        CUTOFF = "2026-10-08"  # user directive: nothing published before this date
         new_count = 0
         for entry in entries or []:
             if (entry["published_at"] or "")[:10] < CUTOFF:

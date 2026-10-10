@@ -13,7 +13,7 @@ from ytbrief import connect
 from ytbrief import transcripts as tr
 from ytbrief import brief_worker as bw
 
-CUTOFF = "2026-08-30"
+CUTOFF = "2026-10-08"
 PAUSE_BETWEEN = 5  # seconds between LLM calls
 
 
@@ -26,7 +26,7 @@ def main():
                           JOIN channels c ON c.channel_id = v.channel_id
                           LEFT JOIN transcripts t ON t.video_id = v.video_id
                           WHERE v.published_at >= ? AND v.state IN ('discovered','transcript_ready')
-                          ORDER BY v.published_at ASC""", (CUTOFF,)).fetchall()
+                          ORDER BY v.published_at DESC""", (CUTOFF,)).fetchall()
     print(f"catch-up: {len(rows)} videos to process (chronological)\n", flush=True)
     made = failed = skipped = 0
     t0 = time.time()
