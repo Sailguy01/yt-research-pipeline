@@ -156,6 +156,12 @@ def asr_fallback(con, video_id: str) -> str | None:
             try: _os.remove(f)
             except OSError: pass
 
+    # Concurrency guard: mark in-progress so a parallel tick/catchup skips this video
+    cur = con.execute("SELECT state_reason FROM videos WHERE video_id=?", (video_id,)).fetchone()
+    if cur and cur["state_reason"] and "asr in progress" in cur["state_reason"]:
+        return None  # another process is already transcribing
+    con.execute("UPDATE videos SET state_reason='asr in progress' WHERE video_id=?", (video_id,))
+    con.commit()
     try:
         # 1. audio-only download (16kHz mono wav)
         r = subprocess.run([YTDLP, "--js-runtimes", "/Users/openclaw/.hermes/tools/node-26.7.0-darwin-arm64/bin/node", "-x", "--audio-format", "wav",
