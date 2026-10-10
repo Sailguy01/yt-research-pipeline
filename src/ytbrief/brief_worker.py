@@ -221,6 +221,13 @@ def process_video(con, video_id: str, dry_run: bool = False, provider: str | Non
                 "Disputed","Unverified","ASR-risk"):
             c["label"] = "Claim"
 
+    # Card-shape repair: if the model omitted the VERDICT line, prepend from structured fields
+    card_txt = brief.get("card", "")
+    if "🎯 VERDICT" not in card_txt:
+        vtag = brief.get("verdict_tag") or "WATCH"
+        vline = brief.get("verdict_line") or "No explicit verdict given."
+        brief["card"] = f"🎯 VERDICT: {vtag} — {vline}\n\n" + card_txt
+
     # Deterministic banned-phrase repair (advice-like phrasing → analytical phrasing)
     REPAIRS = [
         (r"\bguaranteed\b", "highly probable per the speaker"),
@@ -238,9 +245,14 @@ def process_video(con, video_id: str, dry_run: bool = False, provider: str | Non
     brief["report_md"] = _repair(brief.get("report_md", ""))
 
     # Deterministic label repair: unlabeled claims default to [Claim] (speaker assertion)
+    _CLAIM_TYPES = ("thesis","forecast","data_point","regime_call","risk")
     for c in brief.get("claims", []):
         if not c.get("label"):
             c["label"] = "Claim"
+        ct = (c.get("claim_type") or "").strip().lower().replace(" ", "_").replace("-", "_")
+        if ct not in _CLAIM_TYPES:
+            ct = "thesis" if ct in ("opinion","view") else "data_point" if ct in ("fact","data","claim","number") else "forecast" if ct in ("prediction","outlook") else "risk"
+        c["claim_type"] = ct
 
     # Enum normalization (defense in depth): model may return free-text confidence
     _conf = (brief.get("regime_conf") or "").strip().capitalize()
