@@ -14,8 +14,8 @@ from ytbrief import transcripts as tr
 from ytbrief import brief_worker as bw
 from ytbrief import intake
 
-MAX_TRANSCRIPTS_PER_TICK = 4
-MAX_BRIEFS_PER_TICK = 4  # LLM cost control; ~$0.01/tick at 4 briefs
+MAX_TRANSCRIPTS_PER_TICK = 6
+MAX_BRIEFS_PER_TICK = 6  # LLM cost control; ~$0.01/tick at 4 briefs
 
 
 def tick() -> dict:
@@ -29,12 +29,26 @@ def tick() -> dict:
     out["poll"] = poll_once(con)
 
     # 2. Transcripts for discovered videos (oldest-first, capped)
+    # NEWEST first for discovered (drain recent backlog; oldest = stale relevance),
+    # retries (waiting_captions) get a separate smaller budget so repeated failures
+    # can't starve fresh work (head-of-line blocking bug).
+    import time as _time
+    now_iso = _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime())
     vids = [r["video_id"] for r in con.execute(
         """SELECT v.video_id FROM videos v
            LEFT JOIN transcripts t ON t.video_id = v.video_id
-           WHERE v.state IN ('discovered','waiting_captions') AND t.video_id IS NULL
-           ORDER BY v.priority DESC, v.published_at ASC LIMIT ?""",
-        (MAX_TRANSCRIPTS_PER_TICK,))]
+           WHERE v.state='discovered' AND t.video_id IS NULL
+           ORDER BY v.priority DESC, v.published_at DESC LIMIT ?""",
+        (MAX_TRANSCRIPTS_PER_TICK - 1,))]
+    # one retry slot for waiting_captions older than 1h (backoff)
+    retry = con.execute(
+        """SELECT v.video_id FROM videos v
+           LEFT JOIN transcripts t ON t.video_id = v.video_id
+           WHERE v.state='waiting_captions' AND t.video_id IS NULL
+             AND v.discovered_at < ?
+           ORDER BY v.published_at ASC LIMIT 1""",
+        (now_iso,)).fetchall()
+    vids += [r["video_id"] for r in retry]
     # manual submissions bypass the Aug-25 cutoff: they are never filtered by date
     t_ok = t_miss = 0
     for vid in vids:
