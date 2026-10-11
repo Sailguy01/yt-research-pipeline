@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>YT Research Pipeline — Privacy Policy</title>
+<style>body{font-family:-apple-system,sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem;line-height:1.6;color:#1a1a1a}h1{font-size:1.5rem}h2{font-size:1.1rem;margin-top:1.5rem}</style></head>
+<body>
+<h1>YT Research Pipeline — Privacy Policy</h1>
+<p><em>Last updated: October 11, 2026</em></p>
+<p>YT Research Pipeline is a private, single-user research tool that monitors public YouTube channel feeds for personal study of investments, economics, and crypto. This page describes its handling of Google user data, as required by the Google API Services User Data Policy.</p>
+
+<h2>What the app accesses</h2>
+<p>When you authorize it, the app requests the OAuth scope <strong>https://www.googleapis.com/auth/youtube.readonly</strong> only. It is used to:</p>
+<ul>
+<li><strong>Read your YouTube subscription list</strong> (subscriptions.list, mine=true) to know which channels' new uploads to monitor.</li>
+</ul>
+<p>Nothing else. The app never reads Gmail, Drive, contacts, viewing history, or any other Google data. It cannot modify your account, subscriptions, or videos.</p>
+
+<h2>What the app does with that data</h2>
+<ul>
+<li>Your subscription list is stored locally on the operator's own computer (a personal Mac Mini) to drive channel-feed monitoring.</li>
+<li>No Google user data is shared with, sold to, or transferred to any third party. No analytics, no advertising, no other servers.</li>
+</ul>
+
+<h2>Where data lives and how it's protected</h2>
+<ul>
+<li>The OAuth refresh token is stored in the macOS Keychain of the operator's own machine.</li>
+<li>All processing is local. Video audio is deleted immediately after transcription; transcripts and generated research briefs are stored only on the operator's local disk and sent to the operator's own private Telegram chat.</li>
+</ul>
+
+<h2>Revocation and deletion</h2>
+<p>You can revoke the app's access at any time at <a href="https://security.google.com/settings/security/permissions">Google Security — third-party permissions</a>. Upon revocation, the locally stored refresh token is deleted and the app stops all access. Because the app is used by its own operator, no other users' data is involved.</p>
+
+<h2>Contact</h2>
+<p>Questions: open an issue at <a href="https://github.com/Sailguy01/yt-research-pipeline/issues">the project repository</a>.</p>
+</body></html>
