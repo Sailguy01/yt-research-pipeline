@@ -12,9 +12,10 @@ Model-check reminder moved to its own cron (Sept 15).
 import os
 import subprocess
 import sys
+from pathlib import Path
 from datetime import datetime, timedelta
 
-sys.path.insert(0, "/Users/openclaw/yt-research-pipeline/src")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1] / "src"))
 from ytbrief import connect
 
 HERMES_BIN = os.path.expanduser("~/.local/bin/hermes")

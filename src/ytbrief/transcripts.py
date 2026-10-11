@@ -86,7 +86,7 @@ def fetch_duration(con, video_id: str):
     """Fetch real duration + description + short-classification via yt-dlp (no download)."""
     import subprocess, json as _json
     try:
-        r = subprocess.run(["/Users/openclaw/yt-research-pipeline/.venv/bin/yt-dlp", "--dump-json", "--no-download", f"https://youtube.com/watch?v={video_id}"],
+        r = subprocess.run([YTDLP, "--dump-json", "--no-download", f"https://youtube.com/watch?v={video_id}"],
                            capture_output=True, text=True, timeout=120)
         if r.returncode == 0:
             meta = _json.loads(r.stdout.splitlines()[0])
@@ -144,10 +144,11 @@ def asr_fallback(con, video_id: str) -> str | None:
     Benchmark (2026-10-10, Apple M4): medium = 7.8x realtime, best financial-entity
     accuracy (capitalized tickers); turbo = 13.7x realtime, lowercase. medium chosen."""
     import subprocess, os as _os, glob as _glob
-    YTDLP = _os.path.expanduser("~/yt-research-pipeline/.venv/bin/yt-dlp")
-    WHISPER = "/opt/homebrew/bin/whisper-cli"
-    MODEL = _os.path.expanduser("~/yt-research-pipeline/data/models/ggml-medium.bin")
-    TMP = _os.path.expanduser("~/yt-research-pipeline/data/asr_tmp")
+    from .config import YTDLP_BIN, NODE_BIN, WHISPER_BIN, WHISPER_MODEL, REPO_ROOT
+    YTDLP = YTDLP_BIN
+    WHISPER = WHISPER_BIN
+    MODEL = WHISPER_MODEL
+    TMP = str(REPO_ROOT / 'data' / 'asr_tmp')
     _os.makedirs(TMP, exist_ok=True)
     wav = f"{TMP}/{video_id}.wav"
 
@@ -164,7 +165,7 @@ def asr_fallback(con, video_id: str) -> str | None:
     con.commit()
     try:
         # 1. audio-only download (16kHz mono wav)
-        r = subprocess.run([YTDLP, "--js-runtimes", "/Users/openclaw/.hermes/tools/node-26.7.0-darwin-arm64/bin/node", "-x", "--audio-format", "wav",
+        r = subprocess.run([YTDLP, "--js-runtimes", NODE_BIN, "-x", "--audio-format", "wav",
                             "--audio-quality", "16K", "-o", wav,
                             f"https://youtube.com/watch?v={video_id}"],
                            capture_output=True, text=True, timeout=590)

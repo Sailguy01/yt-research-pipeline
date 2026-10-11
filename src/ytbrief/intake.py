@@ -17,7 +17,7 @@ import re
 import sys
 from datetime import datetime, timedelta
 
-sys.path.insert(0, "/Users/openclaw/yt-research-pipeline/src")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1]))
 from ytbrief import connect, utcnow
 
 LOG_PATH = os.path.expanduser("~/.hermes/logs/gateway.log")
@@ -79,7 +79,7 @@ def fetch_metadata(vid: str) -> dict | None:
     """Resolve channel + title + publish date via oEmbed + yt-dlp (no login)."""
     import subprocess, json as J
     try:
-        r = subprocess.run(["/Users/openclaw/yt-research-pipeline/.venv/bin/yt-dlp", "--dump-json", "--no-download",
+        r = subprocess.run([YTDLP, "--dump-json", "--no-download",
                             f"https://youtube.com/watch?v={vid}"],
                            capture_output=True, text=True, timeout=120)
         if r.returncode != 0:

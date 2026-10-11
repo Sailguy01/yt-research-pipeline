@@ -5,9 +5,10 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 import time
 
-sys.path.insert(0, "/Users/openclaw/yt-research-pipeline/src")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1] / "src"))
 from ytbrief import connect
 
 HOME = os.path.expanduser("~")
@@ -106,7 +107,7 @@ def main():
             results[m["label"]][vid] = res
             print(f"    -> {json.dumps(res)[:220]}")
 
-    out = "/Users/openclaw/yt-research-pipeline/data/benchmark_results.json"
+    out = str(Path(__file__).resolve().parents[2] / "data" / "benchmark_results.json")
     with open(out, "w") as f:
         json.dump({"golden": GOLDEN, "results": results}, f, indent=2)
     print(f"\nsaved: {out}")

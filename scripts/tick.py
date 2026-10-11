@@ -6,8 +6,9 @@ picks up only unprocessed work; crashes are safe (state machine in SQLite).
 """
 import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, "/Users/openclaw/yt-research-pipeline/src")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1] / "src"))
 from ytbrief import connect
 from ytbrief.poller import poll_once
 from ytbrief import transcripts as tr

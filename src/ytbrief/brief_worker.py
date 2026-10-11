@@ -16,14 +16,13 @@ import subprocess
 import sys
 
 from . import connect, utcnow, to_cst
+from .config import (HERMES_BIN, DELIVERY_TARGET, DATA_DIR as _DATA_DIR, CUTOFF_DATE)
 from .models import call_llm_with_fallback, notify_fallback, estimate_cost
 
-BRIEF_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "briefs")
+BRIEF_DIR = os.path.join(_DATA_DIR, "briefs")
 ANALYSIS_VERSION = "v2.0-skill"
-DELIVERY_TARGET = "telegram:515737487:4607"  # Market Video Briefs (verified)
-SKILL_PATH = os.path.expanduser("~/.hermes/skills/research/yt-video-briefing/SKILL.md")
-
-HERMES_BIN = "/Users/openclaw/.local/bin/hermes"  # launchd has no shell PATH
+# DELIVERY_TARGET imported from config
+SKILL_PATH = os.path.expanduser("~/.hermes/skills/research/yt-video-briefing/SKILL.md")  # agent-side, machine-local by nature
 
 BANNED_PHRASES = [
     r"\bthis stock will\b", r"\bclearly undervalued\b", r"\bguaranteed\b",
@@ -173,8 +172,8 @@ def validate(brief: dict) -> list[str]:
 def process_video(con, video_id: str, dry_run: bool = False, provider: str | None = None, model: str | None = None) -> str:
     # Cutoff guard (defense in depth): manual links (origin='manual') bypass it
     vchk = con.execute("SELECT origin, published_at FROM videos WHERE video_id=?", (video_id,)).fetchone()
-    if vchk and vchk["origin"] != "manual" and (vchk["published_at"] or "")[:10] < "2026-10-08":
-        con.execute("UPDATE videos SET state='out_of_scope', state_reason='before 2026-10-08 cutoff (guard in process_video)' WHERE video_id=?", (video_id,))
+    if vchk and vchk["origin"] != "manual" and (vchk["published_at"] or "")[:10] < CUTOFF_DATE:
+        con.execute("UPDATE videos SET state='out_of_scope', state_reason=f'before {CUTOFF_DATE} cutoff (guard in process_video)' WHERE video_id=?", (video_id,))
         con.commit()
         raise SystemExit(f"{video_id} pre-cutoff — skipped")
     v = con.execute("""
