@@ -13,13 +13,15 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from ytbrief.config import DELIVERY_TARGET
 from datetime import datetime, timedelta
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1] / "src"))
 from ytbrief import connect
 
 HERMES_BIN = os.path.expanduser("~/.local/bin/hermes")
-TARGET = "telegram:515737487:4607"
+
 MONTHLY_BUDGET = 5.00  # USD ceiling
 
 
@@ -97,5 +99,5 @@ if __name__ == "__main__":
     digest = build_digest()
     print(digest)
     if args.send:
-        subprocess.run([HERMES_BIN, "send", "--to", TARGET, digest], timeout=120)
-        print("\n-- sent to", TARGET)
+        subprocess.run(["hermes", "send", "--to", DELIVERY_TARGET, digest], timeout=120)
+        print("\n-- sent to", DELIVERY_TARGET)

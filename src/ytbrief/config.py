@@ -24,7 +24,7 @@ DATA_DIR = os.environ.get("YTREPO_DATA_DIR", str(REPO_ROOT / "data"))
 DB_PATH = str(Path(DATA_DIR) / "pipeline.db")
 
 # --- Telegram delivery (single source; mild metadata — real value supplied via env in production) ---
-DELIVERY_TARGET = os.environ.get("YTREPO_DELIVERY_TARGET", "telegram:515737487:4607")
+DELIVERY_TARGET = os.environ.get("YTREPO_DELIVERY_TARGET", "telegram:CHAT_ID:TOPIC_ID")
 
 # --- Keychain (labels only; the token itself NEVER leaves Keychain) ---
 KEYCHAIN_SERVICE = "yt-research-pipeline-oauth"
