@@ -145,9 +145,7 @@ def synthesize(mode: str, claims: list[dict], window_label: str, extra: str = ""
 
 # ---------------------------------------------------------------- delivery
 def deliver(text: str, subject: str, report_path: str | None = None):
-    body = text
-    if report_path:
-        body = f"{text}\n\nMEDIA:{report_path}"
+    body = text  # no MEDIA attachment: card is self-contained; reports stay on disk
     cmd = [HERMES_BIN, "send", "--to", DELIVERY_TARGET, "-s", subject, body]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if r.returncode != 0:
