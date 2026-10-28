@@ -234,7 +234,10 @@ def staleness_check(mode: str, period_key: str) -> None:
     con.close()
     if not rows:
         return  # first-ever run for this cadence
-    last = datetime.fromisoformat(rows.replace("Z", "+00:00"))
+    try:
+        last = datetime.fromisoformat(rows.replace("Z", "+00:00"))
+    except ValueError:
+        return  # malformed row — fail open, never false-alert
     age_days = (datetime.now(timezone.utc) - last).days
     need = {"daily": 3, "weekly": 16, "monthly": 40}[mode]  # generous: never false-positive on quiet days
     if age_days > need:
