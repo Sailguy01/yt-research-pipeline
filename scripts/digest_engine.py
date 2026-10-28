@@ -238,6 +238,8 @@ def staleness_check(mode: str, period_key: str) -> None:
         last = datetime.fromisoformat(rows.replace("Z", "+00:00"))
     except ValueError:
         return  # malformed row — fail open, never false-alert
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)  # bare dates are UTC
     age_days = (datetime.now(timezone.utc) - last).days
     need = {"daily": 3, "weekly": 16, "monthly": 40}[mode]  # generous: never false-positive on quiet days
     if age_days > need:
