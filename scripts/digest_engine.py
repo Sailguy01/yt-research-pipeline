@@ -230,7 +230,7 @@ def staleness_check(mode: str, period_key: str) -> None:
     """Alert (once) if a digest for this cadence should have run but never recorded.
     Only for daily/weekly/monthly natural-fire context; catches unloaded jobs & crashes."""
     con = _db()
-    rows = con.execute("SELECT MAX(period_start) FROM digests WHERE period_type=?", (mode,)).fetchone()[0]
+    rows = con.execute("SELECT MAX(generated_at) FROM digests WHERE period_type=?", (mode,)).fetchone()[0]
     con.close()
     if not rows:
         return  # first-ever run for this cadence
