@@ -22,6 +22,7 @@ import os
 import sqlite3
 import subprocess
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -201,6 +202,46 @@ def prev_month_summary(mode: str) -> str:
     return f"PREVIOUS MONTH'S DIGEST (for contrast only — do not repeat it):\n{r[1][0][:800]}"
 
 
+# ---------------------------------------------------------------- selective alerting
+# Panel law: alerts only for anomalies needing human action. Quiet days, already-run,
+# and routine completions are NOT alert-worthy. Two alert classes, both capped 1/day:
+#   A. a scheduled digest failed to deliver after 1 retry (the silent-failure class)
+#   B. staleness: a digest window closed but its digest never recorded (job unloaded/crashed)
+def alert(message: str) -> bool:
+    """Send one ops alert. Deduped per calendar day by alert state file. Returns sent?."""
+    state = os.path.join(DATA_DIR, "digests", "alert_state.json")
+    import json
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    sent = {}
+    if os.path.exists(state):
+        sent = json.load(open(state))
+    if sent.get(today) == message:
+        return False  # already alerted today about exactly this — no spam
+    r = subprocess.run([HERMES_BIN, "send", "--to", DELIVERY_TARGET,
+                        "-s", "⚠️ digest ops", message], capture_output=True, text=True, timeout=120)
+    if r.returncode == 0:
+        sent[today] = message
+        json.dump(sent, open(state, "w"))
+        return True
+    return False
+
+
+def staleness_check(mode: str, period_key: str) -> None:
+    """Alert (once) if a digest for this cadence should have run but never recorded.
+    Only for daily/weekly/monthly natural-fire context; catches unloaded jobs & crashes."""
+    con = _db()
+    rows = con.execute("SELECT MAX(period_start) FROM digests WHERE period_type=?", (mode,)).fetchone()[0]
+    con.close()
+    if not rows:
+        return  # first-ever run for this cadence
+    last = datetime.fromisoformat(rows.replace("Z", "+00:00"))
+    age_days = (datetime.now(timezone.utc) - last).days
+    need = {"daily": 3, "weekly": 16, "monthly": 40}[mode]  # generous: never false-positive on quiet days
+    if age_days > need:
+        alert(f"{mode} digest staleness: last successful {mode} digest was {age_days} days ago "
+              f"({last:%b %d}). Job may have stopped firing — check launchctl list / tick logs.")
+
+
 # ---------------------------------------------------------------- main
 def run(mode: str, force: bool = False) -> str:
     start, end, period_key, label = window(mode)
@@ -236,10 +277,18 @@ def run(mode: str, force: bool = False) -> str:
                 f"(claims window: {start} → {end}; guardrails: cited, correlations-only)\n")
     record_digest(mode, period_key, start, end, card, n_briefs, len(claims), report_path)  # idempotency gate first
     try:
-        deliver(card, f"{mode} digest {label}", report_path)
-    except Exception:
+        try:
+            deliver(card, f"{mode} digest {label}", report_path)
+        except Exception:
+            # one retry (transient gateway blips) before alerting — no alert on first blip
+            time.sleep(30)
+            deliver(card, f"{mode} digest {label}", report_path)
+    except Exception as exc:
         con = _db(); con.execute("DELETE FROM digests WHERE period_key=?", (period_key,)); con.commit(); con.close()
+        alert(f"{mode} digest for {period_key} FAILED to deliver after retry. Error: {str(exc)[:180]}. "
+              f"Card is saved at {report_path} — say 'redeliver' to send it.")
         raise
+    staleness_check(mode, period_key)
     return f"delivered:{period_key}:{len(claims)} claims"
 
 
