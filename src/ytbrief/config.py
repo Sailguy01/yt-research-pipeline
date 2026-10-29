@@ -23,8 +23,18 @@ WHISPER_MODEL = os.environ.get("YTREPO_WHISPER_MODEL",
 DATA_DIR = os.environ.get("YTREPO_DATA_DIR", str(REPO_ROOT / "data"))
 DB_PATH = str(Path(DATA_DIR) / "pipeline.db")
 
-# --- Telegram delivery (single source; mild metadata — real value supplied via env in production) ---
-DELIVERY_TARGET = os.environ.get("YTREPO_DELIVERY_TARGET", "telegram:CHAT_ID:TOPIC_ID")
+# --- Telegram delivery ---
+# Priority: env override > LOCAL private file (git-ignored, outside repo) > public placeholder.
+# The local file is the production source of truth — launchd jobs never need YTREPO_* env blocks
+# for this (a missed block caused the silent Oct 28 digest outage).
+_private = HOME / "Library" / "Application Support" / "yt-research-pipeline" / "delivery.json"
+DELIVERY_TARGET = os.environ.get("YTREPO_DELIVERY_TARGET")
+if not DELIVERY_TARGET:
+    try:
+        import json
+        DELIVERY_TARGET = json.loads(_private.read_text())["delivery_target"]
+    except Exception:
+        DELIVERY_TARGET = "telegram:CHAT_ID:TOPIC_ID"  # public placeholder
 
 # --- Keychain (labels only; the token itself NEVER leaves Keychain) ---
 KEYCHAIN_SERVICE = "yt-research-pipeline-oauth"
