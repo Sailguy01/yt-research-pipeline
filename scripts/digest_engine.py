@@ -176,7 +176,7 @@ def window(mode: str) -> tuple[str, str, str, str]:
         return start.isoformat(), now.isoformat(), f"daily-{key}", label
     if mode == "weekly":
         start = now - timedelta(days=7)
-        key = f"weekly-{start.strftime('%G-W%V')}"
+        key = f"weekly-{now.strftime('%G-W%V')}"  # keyed by RUN date: each Saturday = unique key
         label = f"{start.strftime('%b %d')}–{now.strftime('%b %d')} (7 days)"
         return start.isoformat(), now.isoformat(), key, label
     # monthly: previous calendar month
