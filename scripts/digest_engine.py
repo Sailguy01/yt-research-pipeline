@@ -66,6 +66,7 @@ def load_claims(start: str, end: str) -> list[dict]:
         WHERE c.occurred_at >= ? AND c.occurred_at < ?
           AND c.superseded_by IS NULL
           AND v.state = 'delivered'
+          AND (v.is_short IS NULL OR v.is_short = 0)  -- Shorts never feed synthesis
         ORDER BY c.occurred_at DESC""", (start, end)).fetchall()
     con.close()
     return [dict(r) for r in rows]

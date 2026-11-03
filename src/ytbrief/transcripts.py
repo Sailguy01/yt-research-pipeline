@@ -8,6 +8,10 @@ import os
 import re
 
 from . import connect, utcnow
+from .config import YTDLP_BIN
+
+YTDLP = YTDLP_BIN  # module-level: referenced by fetch_duration (a function-scope
+                   # assignment here caused an Oct 25–Nov 3 silent NameError → Shorts leak)
 
 TRANSCRIPT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "transcripts")
 
@@ -108,8 +112,9 @@ def fetch_duration(con, video_id: str):
                         (dur, desc, is_short, video_id))
             con.commit()
             return dur
-    except Exception:
-        pass
+    except Exception as exc:
+        import sys
+        print(f"fetch_duration({video_id}) failed: {exc}", file=sys.stderr)  # NEVER silent again
     return None
 
 
@@ -205,6 +210,15 @@ def acquire(con, video_id: str, allow_asr: bool = False) -> str | None:
     if row and row["is_short"] is None:
         fetch_duration(con, video_id)
         row = con.execute("SELECT origin, is_short FROM videos WHERE video_id=?", (video_id,)).fetchone()
+        if row and row["is_short"] is None:
+            # backstop: yt-dlp failed entirely — the canonical URL check alone is YouTube's own
+            # classifier and needs no yt-dlp. canonical True => Short; False => not a Short.
+            canonical = is_short_canonical(video_id)
+            if canonical is not None:
+                con.execute("UPDATE videos SET is_short=? WHERE video_id=?",
+                            (1 if canonical else 0, video_id))
+                con.commit()
+                row = con.execute("SELECT origin, is_short FROM videos WHERE video_id=?", (video_id,)).fetchone()
     # Short exclusion (user directive): canonical + corroborated classification.
     # Manual links bypass — an explicit request is its own authorization.
     if row and row["is_short"] == 1 and row["origin"] != "manual":
