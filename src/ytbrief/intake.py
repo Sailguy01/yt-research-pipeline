@@ -17,8 +17,11 @@ import re
 import sys
 from datetime import datetime, timedelta
 
-sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1]))
+import pathlib as _pl
+_root = _pl.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_root / "src"))
 from ytbrief import connect, utcnow
+from ytbrief.config import YTDLP_BIN
 
 LOG_PATH = os.path.expanduser("~/.hermes/logs/gateway.log")
 YT_RE = re.compile(r"(?:youtube\.com/(?:watch\?v=|shorts/|live/)|youtu\.be/)([\w-]{11})")
@@ -79,7 +82,7 @@ def fetch_metadata(vid: str) -> dict | None:
     """Resolve channel + title + publish date via oEmbed + yt-dlp (no login)."""
     import subprocess, json as J
     try:
-        r = subprocess.run([YTDLP, "--dump-json", "--no-download",
+        r = subprocess.run([YTDLP_BIN, "--dump-json", "--no-download",
                             f"https://youtube.com/watch?v={vid}"],
                            capture_output=True, text=True, timeout=120)
         if r.returncode != 0:
